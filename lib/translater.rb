@@ -6,7 +6,7 @@
 # without needing a precedence table.
 class Translater
   def translate(node)
-    node.accept(self)
+    node.accept(self); 
   end
 
   # Primitives
