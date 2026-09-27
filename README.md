@@ -7,12 +7,10 @@ evaluator (both visitors), a grid of cells, and a runtime.
 
     ruby ms1_demo.rb
 
-Tested with Ruby 3.2. Requires Ruby 3.0 or newer.
-
 ## Layout
 
 - `ms1_demo.rb`: builds trees by hand, translates and evaluates them
-- `lib/ast.rb`: expression hierarchy, namespaced under `Ast`
+- `lib/ast.rb`: expression hierarchy
 - `lib/translator.rb`: AST to source text
 - `lib/evaluator.rb`: AST to primitive, with typechecking
 - `lib/grid.rb`: cells, grid, and runtime
