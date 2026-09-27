@@ -1,7 +1,5 @@
-# frozen_string_literal: true
-
 require_relative 'errors'
-require_relative 'nodes'
+require_relative 'ast'
 
 # Visitor that reduces any AST to a single primitive node, typechecking each
 # operation as it goes. Type rules:
@@ -12,15 +10,15 @@ require_relative 'nodes'
 #   * relational: both operands the same type; ordering (<, >=, ...) is only
 #                 defined for numbers and strings
 class Evaluator
-  NUMERIC = [IntegerPrimitive, FloatPrimitive].freeze
-  ORDERABLE = [IntegerPrimitive, FloatPrimitive, StringPrimitive].freeze
+  NUMERIC = [Ast::Integer, Ast::Float].freeze
+  ORDERABLE = [Ast::Integer, Ast::Float, Ast::String].freeze
 
   def initialize(runtime)
     @runtime = runtime
   end
 
   def evaluate(node)
-    node.accept(self)
+    node.visit(self)
   end
 
   # --- Primitives evaluate to themselves -----------------------------------
@@ -36,7 +34,7 @@ class Evaluator
 
   def visit_add(n)
     l, r = operands(n)
-    return StringPrimitive.new(l.value + r.value) if both?(StringPrimitive, l, r)
+    return Ast::String.new(l.raw_value + r.raw_value) if both?(Ast::String, l, r)
 
     arithmetic('+', l, r) { |a, b| a + b }
   end
@@ -60,7 +58,7 @@ class Evaluator
     end
   end
 
-  def visit_modulo(n)
+  def visit_modulus(n)
     l, r = operands(n)
     arithmetic('%', l, r) do |a, b|
       raise EvaluationError, 'Modulo by zero' if b.zero?
@@ -86,42 +84,42 @@ class Evaluator
   def visit_negate(n)
     v = evaluate(n.operand)
     require_type('unary -', v, NUMERIC)
-    v.class.new(-v.value)
+    v.class.new(-v.raw_value)
   end
 
   # --- Logical (and/or short-circuit) --------------------------------------
 
   def visit_and(n)
     l = evaluate(n.left)
-    require_type('&&', l, [BooleanPrimitive])
-    return l unless l.value # false && anything is false; skip the right side
+    require_type('&&', l, [Ast::Boolean])
+    return l unless l.raw_value # false && anything is false; skip the right side
 
     r = evaluate(n.right)
-    require_type('&&', r, [BooleanPrimitive])
+    require_type('&&', r, [Ast::Boolean])
     r
   end
 
   def visit_or(n)
     l = evaluate(n.left)
-    require_type('||', l, [BooleanPrimitive])
-    return l if l.value # true || anything is true; skip the right side
+    require_type('||', l, [Ast::Boolean])
+    return l if l.raw_value # true || anything is true; skip the right side
 
     r = evaluate(n.right)
-    require_type('||', r, [BooleanPrimitive])
+    require_type('||', r, [Ast::Boolean])
     r
   end
 
   def visit_not(n)
     v = evaluate(n.operand)
-    require_type('!', v, [BooleanPrimitive])
-    BooleanPrimitive.new(!v.value)
+    require_type('!', v, [Ast::Boolean])
+    Ast::Boolean.new(!v.raw_value)
   end
 
   # --- Bitwise -------------------------------------------------------------
 
-  def visit_bit_and(n) = bitwise('&', n) { |a, b| a & b }
-  def visit_bit_or(n)  = bitwise('|', n) { |a, b| a | b }
-  def visit_bit_xor(n) = bitwise('^', n) { |a, b| a ^ b }
+  def visit_bitwise_and(n) = bitwise('&', n) { |a, b| a & b }
+  def visit_bitwise_or(n)  = bitwise('|', n) { |a, b| a | b }
+  def visit_bitwise_xor(n) = bitwise('^', n) { |a, b| a ^ b }
 
   def visit_shift_left(n)
     bitwise('<<', n) do |a, b|
@@ -139,10 +137,10 @@ class Evaluator
     end
   end
 
-  def visit_bit_not(n)
+  def visit_bitwise_not(n)
     v = evaluate(n.operand)
-    require_type('~', v, [IntegerPrimitive])
-    IntegerPrimitive.new(~v.value)
+    require_type('~', v, [Ast::Integer])
+    Ast::Integer.new(~v.raw_value)
   end
 
   # --- Relational ----------------------------------------------------------
@@ -158,16 +156,16 @@ class Evaluator
 
   def visit_float_to_int(n)
     v = evaluate(n.operand)
-    require_type('float-to-int', v, [FloatPrimitive])
-    raise EvaluationError, "Cannot convert #{v.value} to an integer" unless v.value.finite?
+    require_type('float-to-int', v, [Ast::Float])
+    raise EvaluationError, "Cannot convert #{v.raw_value} to an integer" unless v.raw_value.finite?
 
-    IntegerPrimitive.new(v.value.to_i) # truncates toward zero
+    Ast::Integer.new(v.raw_value.to_i) # truncates toward zero
   end
 
   def visit_int_to_float(n)
     v = evaluate(n.operand)
-    require_type('int-to-float', v, [IntegerPrimitive])
-    FloatPrimitive.new(v.value.to_f)
+    require_type('int-to-float', v, [Ast::Integer])
+    Ast::Float.new(v.raw_value.to_f)
   end
 
   # --- Cells ---------------------------------------------------------------
@@ -177,33 +175,33 @@ class Evaluator
   def visit_cell_lvalue(n)
     col = evaluate(n.col)
     row = evaluate(n.row)
-    require_type('cell column', col, [IntegerPrimitive])
-    require_type('cell row', row, [IntegerPrimitive])
-    AddressPrimitive.new(col.value, row.value)
+    require_type('cell column', col, [Ast::Integer])
+    require_type('cell row', row, [Ast::Integer])
+    Ast::Address.new([col.raw_value, row.raw_value])
   end
 
   def visit_cell_rvalue(n)
-    @runtime.grid.get(visit_cell_lvalue(n)) # raises EmptyCellError if empty
+    @runtime.grid.get_primitive(visit_cell_lvalue(n)) # raises EmptyCellError if empty
   end
 
   # --- Statistics ----------------------------------------------------------
 
   def visit_sum(n)
     values = range_values('sum', n)
-    values.first.class.new(values.sum(&:value))
+    values.first.class.new(values.sum(&:raw_value))
   end
 
   def visit_min(n)
-    range_values('min', n).min_by(&:value)
+    range_values('min', n).min_by(&:raw_value)
   end
 
   def visit_max(n)
-    range_values('max', n).max_by(&:value)
+    range_values('max', n).max_by(&:raw_value)
   end
 
   def visit_mean(n)
     values = range_values('mean', n)
-    FloatPrimitive.new(values.sum(&:value).to_f / values.size)
+    Ast::Float.new(values.sum(&:raw_value).to_f / values.size)
   end
 
   private
@@ -217,7 +215,7 @@ class Evaluator
   end
 
   def type_name(primitive)
-    primitive.class.name.sub('Primitive', '').downcase
+    primitive.class.name.split('::').last.downcase
   end
 
   def require_type(op, primitive, allowed)
@@ -235,14 +233,14 @@ class Evaluator
             "Operator #{op} needs matching types, got #{type_name(left)} and #{type_name(right)}"
     end
 
-    left.class.new(yield(left.value, right.value))
+    left.class.new(yield(left.raw_value, right.raw_value))
   end
 
   def bitwise(op, node)
     l, r = operands(node)
-    require_type(op, l, [IntegerPrimitive])
-    require_type(op, r, [IntegerPrimitive])
-    IntegerPrimitive.new(yield(l.value, r.value))
+    require_type(op, l, [Ast::Integer])
+    require_type(op, r, [Ast::Integer])
+    Ast::Integer.new(yield(l.raw_value, r.raw_value))
   end
 
   def relational(op, node, ordering: true)
@@ -252,7 +250,7 @@ class Evaluator
             "Operator #{op} needs matching types, got #{type_name(l)} and #{type_name(r)}"
     end
     require_type(op, l, ORDERABLE) if ordering
-    BooleanPrimitive.new(yield(l.value, r.value))
+    Ast::Boolean.new(yield(l.raw_value, r.raw_value))
   end
 
   # Evaluate both corners, walk the rectangle between them, and return every
@@ -260,12 +258,12 @@ class Evaluator
   def range_values(op, node)
     a = evaluate(node.first)
     b = evaluate(node.last)
-    require_type(op, a, [AddressPrimitive])
-    require_type(op, b, [AddressPrimitive])
+    require_type(op, a, [Ast::Address])
+    require_type(op, b, [Ast::Address])
 
     values = ([a.col, b.col].min..[a.col, b.col].max).flat_map do |col|
       ([a.row, b.row].min..[a.row, b.row].max).map do |row|
-        @runtime.grid.get(AddressPrimitive.new(col, row))
+        @runtime.grid.get_primitive(Ast::Address.new([col, row]))
       end
     end
 

@@ -1,8 +1,6 @@
-# frozen_string_literal: true
-
 require_relative 'errors'
-require_relative 'nodes'
-require_relative 'translater'
+require_relative 'ast'
+require_relative 'translator'
 require_relative 'evaluator'
 
 # What one cell remembers: what was typed, the tree it became, and the
@@ -32,12 +30,12 @@ class Grid
   # whatever it held before, so a bad edit can't corrupt the grid.
   def set(address, ast, source = nil)
     value = Evaluator.new(@runtime).evaluate(ast)
-    source ||= Translater.new.translate(ast)
+    source ||= Translator.new.translate(ast)
     @cells[[address.col, address.row]] = Cell.new(source, ast, value)
     value
   end
 
-  def get(address)
+  def get_primitive(address)
     cell = @cells[[address.col, address.row]]
     raise EmptyCellError, "Cell (#{address.col}, #{address.row}) is empty" if cell.nil?
 

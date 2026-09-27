@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 # One base class so later milestones can `rescue SpreadsheetError` and show a
 # message in the cell instead of crashing, while real bugs still blow up.
 class SpreadsheetError < StandardError; end
