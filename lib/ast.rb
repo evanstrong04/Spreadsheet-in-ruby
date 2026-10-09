@@ -6,15 +6,10 @@
 # ---------------------------------------------------------------------------
 
 module Ast
-  class Node
-    def visit(_visitor)
-      raise NotImplementedError, "#{self.class} must implement visit"
-    end
-  end
 
   # --- Primitives -------------------------------------------------------------
 
-  class Primitive < Node
+  class Primitive
     attr_reader :raw_value
 
     def initialize(raw_value)
@@ -54,7 +49,7 @@ module Ast
 
   # --- Shapes shared by the operators -----------------------------------------
 
-  class UnaryNode < Node
+  class UnaryNode
     attr_reader :operand
 
     def initialize(operand)
@@ -62,7 +57,7 @@ module Ast
     end
   end
 
-  class BinaryNode < Node
+  class BinaryNode
     attr_reader :left, :right
 
     def initialize(left, right)
@@ -113,7 +108,7 @@ module Ast
   # --- Cells -----------------------------------------------------------------------
 
   # Both hold two *expressions* (not plain numbers), so #[1 + 1, 4] works.
-  class CellLvalue < Node
+  class CellLvalue
     attr_reader :col, :row
 
     def initialize(col, row)
@@ -124,7 +119,7 @@ module Ast
     def visit(v) = v.visit_cell_lvalue(self)
   end
 
-  class CellRvalue < Node
+  class CellRvalue
     attr_reader :col, :row
 
     def initialize(col, row)
@@ -138,7 +133,7 @@ module Ast
   # --- Statistics (4) -------------------------------------------------------------
   # Each takes two cell lvalues: opposite corners of a rectangle of cells.
 
-  class RangeNode < Node
+  class RangeNode
     attr_reader :first, :last
 
     def initialize(first, last)

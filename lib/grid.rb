@@ -8,8 +8,9 @@ require_relative 'evaluator'
 Cell = Struct.new(:source, :ast, :value)
 
 # The executing program's environment. For now that is just the grid, which
-# rvalues and statistical functions need to reach other cells. Variables or
-# a call stack would live here later.
+# rvalues and statistical functions need to reach other cells. A new Runtime
+# is created for each evaluation, so variables or a call stack added here
+# later stay local to that evaluation.
 class Runtime
   attr_reader :grid
 
@@ -23,13 +24,13 @@ class Grid
     # Sparse storage: a Hash keyed by [col, row] only spends memory on cells
     # that exist, and an absent key is exactly what "empty cell" means.
     @cells = {}
-    @runtime = Runtime.new(self)
   end
 
   # Evaluate the tree first, then store. If evaluation raises, the cell keeps
   # whatever it held before, so a bad edit can't corrupt the grid.
   def set(address, ast, source = nil)
-    value = Evaluator.new(@runtime).evaluate(ast)
+    runtime = Runtime.new(self)
+    value = Evaluator.new(runtime).evaluate(ast)
     source ||= Translator.new.translate(ast)
     @cells[[address.col, address.row]] = Cell.new(source, ast, value)
     value
