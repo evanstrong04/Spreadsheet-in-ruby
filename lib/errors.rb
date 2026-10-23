@@ -10,3 +10,9 @@ class EmptyCellError < SpreadsheetError; end
 
 # Types were fine but the operation itself is undefined (divide by zero, ...).
 class EvaluationError < SpreadsheetError; end
+
+# Bad characters in the source text.
+class LexerError < SpreadsheetError; end
+
+# Tokens in an order the grammar doesn't allow.
+class ParserError < SpreadsheetError; end

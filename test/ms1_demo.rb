@@ -1,4 +1,4 @@
-require_relative 'lib/grid'
+require_relative '../lib/grid'
 
 GRID = Grid.new
 TRANSLATOR = Translator.new
