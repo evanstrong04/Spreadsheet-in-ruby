@@ -4,27 +4,26 @@ require_relative '../lib/lexer'
 require_relative '../lib/parser'
 
 class Ms2Test < Minitest::Test
-    
   def setup
-  @grid = Grid.new
-  set_cell(0, 0, 1)
-  set_cell(0, 1, 2)
-  set_cell(1, 0, 3)
-  set_cell(1, 1, 4)
-  set_cell(2, 0, 5)
-  set_cell(2, 1, 6)
-end
+    @grid = Grid.new
+    set_cell(0, 0, 1)
+    set_cell(0, 1, 2)
+    set_cell(1, 0, 3)
+    set_cell(1, 1, 4)
+    set_cell(2, 0, 5)
+    set_cell(2, 1, 6)
+  end
 
-def set_cell(col, row, value)
-  @grid.set(Ast::Address.new([col, row]), Ast::Integer.new(value))
-end
+  def set_cell(col, row, value)
+    @grid.set(Ast::Address.new([col, row]), Ast::Integer.new(value))
+  end
 
   def run_source(src)
     ast = Parser.new(Lexer.new(src).lex).parse
     Evaluator.new(Runtime.new(@grid)).evaluate(ast).raw_value
   end
 
- def test_good
+  def test_good
     assert_equal 1, run_source('(5 + 2) * 3 % 4')
     assert_equal true, run_source('true == !!!false')
     assert_equal 4, run_source('#[0, 0] + 3')
@@ -46,5 +45,12 @@ end
     ['#[5]', '5 + 6 8', '----', '()', 'sum()'].each do |s|
       assert_raises(ParserError) { Parser.new(Lexer.new(s).lex).parse }
     end
+  end
+
+  def test_error_messages
+    e = assert_raises(ParserError) { Parser.new(Lexer.new('5 + 6 8').lex).parse }
+    assert_match(/Unexpected token '8'/, e.message)
+    e = assert_raises(LexerError) { Lexer.new('$money').lex }
+    assert_match(/Unexpected character '\$'/, e.message)
   end
 end
