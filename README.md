@@ -22,7 +22,7 @@ into tokens, then into an AST, then evaluated.
 - `lib/parser.rb`: tokens to AST (recursive descent, one method per grammar level)
 - `lib/errors.rb`: custom exception classes (`LexerError`, `ParserError`, ...)
 - `grammar.txt`: the grammar the parser implements
-- `grammar/`: Treeformer screenshots of the grammar
+- `grammar/`: Treeformer abstract syntax tree screenshots (`tree1.png`, `tree2.png`)
 - `test/ms1_demo.rb`: Milestone 1 demo
 - `test/ms2_demo.rb`: Milestone 2 tests (good expressions, lexer errors, parser errors)
 
