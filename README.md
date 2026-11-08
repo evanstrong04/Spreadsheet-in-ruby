@@ -1,50 +1,79 @@
-# Spreadsheet: Milestone 2 (Lexer and Parser)
+# Spreadsheet: Milestone 3 (Statements and Curses UI)
 
-Ruby spreadsheet. Milestone 1 built the model: expression nodes, a translator
-and an evaluator (both visitors), a grid of cells, and a runtime. Milestone 2
-adds a lexer and a parser, so source text like `#[0, 0] + 3` can be turned
-into tokens, then into an AST, then evaluated.
+Ruby spreadsheet. Milestone 1 built the model (nodes, translator, evaluator,
+grid, runtime). Milestone 2 added a lexer and parser. Milestone 3 adds
+statements (`print`, assignment, variables, blocks) and a terminal user
+interface built with Curses.
 
     source text -> Lexer -> tokens -> Parser -> AST -> Evaluator -> primitive
 
 ## Run
 
-    ruby test/ms1_demo.rb    # Milestone 1: hand-built trees, translated and evaluated
-    ruby test/ms2_demo.rb    # Milestone 2: minitest suite for the lexer and parser
+    gem install curses            # once, if the curses gem is missing
+    ruby main.rb                  # empty spreadsheet, saves to spreadsheet.json
+    ruby main.rb sample/demo.json # load a file; Ctrl-S writes back to it
+
+    ruby test/ms1_demo.rb         # Milestone 1: hand-built trees
+    ruby test/ms2_demo.rb         # Milestone 2: lexer and parser tests
+    ruby test/ms3_demo.rb         # Milestone 3: statements, grid, file, editor
 
 ## Layout
 
-- `lib/ast.rb`: expression hierarchy
+- `main.rb`: entry point (reads the optional file argument)
+- `lib/ast.rb`: expression and statement hierarchy
 - `lib/translator.rb`: AST to source text
 - `lib/evaluator.rb`: AST to primitive, with typechecking
-- `lib/grid.rb`: cells, grid, and runtime
-- `lib/lexer.rb`: source text to tokens (knows nothing about order or meaning)
-- `lib/parser.rb`: tokens to AST (recursive descent, one method per grammar level)
-- `lib/errors.rb`: custom exception classes (`LexerError`, `ParserError`, ...)
-- `grammar.txt`: the grammar the parser implements
-- `grammar/`: Treeformer abstract syntax tree screenshots (`tree1.png`, `tree2.png`)
-- `test/ms1_demo.rb`: Milestone 1 demo
-- `test/ms2_demo.rb`: Milestone 2 tests (good expressions, lexer errors, parser errors)
+- `lib/display.rb`: primitive to text (shared by `print` and the UI)
+- `lib/grid.rb`: cells, grid, runtime (variables and output buffer), file I/O
+- `lib/lexer.rb`, `lib/parser.rb`: text to tokens to AST
+- `lib/editor.rb`: multiline text buffer (no curses, so it is unit tested)
+- `lib/ui.rb`: the Curses interface
+- `lib/errors.rb`: exception classes
+- `grammar/grammar.txt`: the grammar the parser implements
+- `sample/demo.json`: part of the demo spreadsheet, to load from a file
 
-## Grammar notes
+## Statements
 
-- Lowest to highest precedence: `||`, `&&`, `== !=`, `< <= > >=`,
-  `& | ^`, `<< >>`, `+ -`, `* / %`, `**`, prefix `- ! ~`, then primitives,
-  parentheses, cells, casts, and statistics.
-- Binary operators are left associative, except `**`, which is right
-  associative (`2 ** 3 ** 2` is `2 ** (3 ** 2)`).
-- Bitwise operators bind tighter than comparisons, so `a & b == c` is
-  `(a & b) == c`.
-- Prefix operators bind tighter than `**`, so `-2 ** 2` is `(-2) ** 2`.
-- `#[c, r]` is a cell rvalue (reads the cell); `[c, r]` is a cell lvalue
-  (an address). Column and row can be any expression.
-- `sum`, `min`, `max`, and `mean` take two lvalues: opposite corners of a
-  rectangle of cells.
+    x = 7 ** 2
+    y = 8 << 1
+    print(x)
+    print(y)
+    x + y
 
-## Errors
+A program is statements separated by line breaks. `print(e)` appends the text
+of `e` plus a newline to the runtime's output buffer (never to stdout);
+`x = e` stores a value in the runtime's variables; `x` reads it; a block
+evaluates to its last statement (65 above, with output `49` and `16`).
+Variables and output are local to one cell's evaluation. `=` is assignment and
+`==` is equality. `print` is a statement, not an expression.
 
-All errors inherit from `SpreadsheetError`.
+## Cell input rules
 
-- `LexerError`: bad characters, unknown words, malformed numbers, unterminated strings
-- `ParserError`: tokens in an order the grammar does not allow
-- `TypeMismatchError`, `EmptyCellError`, `EvaluationError`: raised while evaluating
+- Starts with `=`: the rest is code (lexed, parsed, evaluated). Put a newline
+  after the `=` for a multiline program.
+- Otherwise an integer, float, or `true`/`false` becomes that primitive.
+- Anything else is a plain string.
+
+A cell holding bad code keeps its text and shows `#ERR`; the expanded display
+shows the error. Every edit re-evaluates all formulas, with cells evaluated
+after the cells they read, so dependents always update. Circular references
+are reported as `CircularReferenceError`.
+
+## Keys
+
+- Arrows, PgUp/PgDn: move (the grid scrolls forever in every direction)
+- Type, or Enter: edit the selected cell. Enter or Tab commits, Ctrl-J starts
+  a new line, Esc cancels
+- Del or Backspace: clear the cell
+- Ctrl-S: save to the file. Ctrl-Q: quit (asks twice if unsaved)
+
+## Extra features
+
+1. **Color:** numbers cyan, strings green, booleans yellow, errors bold red.
+2. **Mouse navigation:** click selects a cell, double-click edits it, the
+   wheel scrolls.
+
+## File format
+
+JSON: `{"cells": [{"col": 0, "row": 0, "source": "5.3"}, ...]}` where `source`
+is exactly what was typed into the cell.

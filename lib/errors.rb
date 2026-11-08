@@ -11,6 +11,12 @@ class EmptyCellError < SpreadsheetError; end
 # Types were fine but the operation itself is undefined (divide by zero, ...).
 class EvaluationError < SpreadsheetError; end
 
+# A variable was read before anything was assigned to it.
+class UndefinedVariableError < SpreadsheetError; end
+
+# Cells that (directly or indirectly) depend on themselves.
+class CircularReferenceError < SpreadsheetError; end
+
 # Bad characters in the source text.
 class LexerError < SpreadsheetError; end
 

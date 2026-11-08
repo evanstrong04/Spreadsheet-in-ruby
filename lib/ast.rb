@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Milestone 1 model: the expression hierarchy.
+# Model: the expression and statement hierarchy.
 # Every node has one job: hold its children and route a visitor to the right
 # visit_* method (double dispatch). Nodes know nothing about translating or
 # evaluating; that lives in the visitors.
@@ -146,4 +146,45 @@ module Ast
   class Min  < RangeNode; def visit(v) = v.visit_min(self);  end
   class Mean < RangeNode; def visit(v) = v.visit_mean(self); end
   class Sum  < RangeNode; def visit(v) = v.visit_sum(self);  end
+
+  # --- Statements (Milestone 3) ----------------------------------------------------
+
+  # print(expr): evaluates expr and appends its text to the runtime's output.
+  class Print < UnaryNode
+    def visit(v) = v.visit_print(self)
+  end
+
+  # name = expr: evaluates expr and stores it in the runtime's variables.
+  class Assign
+    attr_reader :name, :expression
+
+    def initialize(name, expression)
+      @name = name
+      @expression = expression
+    end
+
+    def visit(v) = v.visit_assign(self)
+  end
+
+  # x: reads a variable from the runtime.
+  class VariableRvalue
+    attr_reader :name
+
+    def initialize(name)
+      @name = name
+    end
+
+    def visit(v) = v.visit_variable_rvalue(self)
+  end
+
+  # A sequence of statements; evaluates to the value of the last one.
+  class Block
+    attr_reader :statements
+
+    def initialize(statements)
+      @statements = statements
+    end
+
+    def visit(v) = v.visit_block(self)
+  end
 end

@@ -23,6 +23,16 @@ class Lexer
                             (@source[@i] >= 'A' && @source[@i] <= 'Z'))
   end
 
+  # Words start with a letter or underscore...
+  def has_word_start
+    has_letter || has('_')
+  end
+
+  # ...and continue with letters, digits, or underscores.
+  def has_word_char
+    has_word_start || has_digit
+  end
+
   def capture
     @text_so_far += @source[@i]
     @i += 1
@@ -35,8 +45,12 @@ class Lexer
 
   def lex
     while @i < @source.length
-      if has(' ') || has("\t") || has("\n")
+      if has(' ') || has("\t") || has("\r")
         @i += 1
+      elsif has("\n")
+        # Newlines separate statements, so they are tokens now.
+        capture
+        emit_token(:newline)
       elsif has_digit
         while has_digit
           capture
@@ -48,12 +62,14 @@ class Lexer
           while has_digit
             capture
           end
+          reject_trailing_word
           emit_token(:float_literal)
         else
+          reject_trailing_word
           emit_token(:integer_literal)
         end
-      elsif has_letter
-        while has_letter
+      elsif has_word_start
+        while has_word_char
           capture
         end
         word_token
@@ -118,10 +134,12 @@ class Lexer
         end
       elsif has('=')
         capture
-        raise LexerError, "Unexpected '=' at position #{@i - 1}; did you mean '=='?" unless has('=')
-
-        capture
-        emit_token(:equal)
+        if has('=')
+          capture
+          emit_token(:equal)
+        else
+          emit_token(:assign)
+        end
       elsif has('<')
         capture
         if has('<')
@@ -172,7 +190,15 @@ class Lexer
 
   private
 
-  # A finished word is either a keyword or an error. Still just chunking text.
+  # Now that variables exist, "40ish" would lex as 40 followed by the name
+  # ish. That is almost certainly a typo, so reject it here.
+  def reject_trailing_word
+    return unless has_word_start
+
+    raise LexerError, "Invalid number '#{@text_so_far}#{@source[@i]}' at position #{@i - @text_so_far.length}"
+  end
+
+  # A finished word is either a keyword or a variable name.
   def word_token
     case @text_so_far
     when 'true'  then emit_token(:true)
@@ -184,8 +210,8 @@ class Lexer
     when 'min'   then emit_token(:min)
     when 'max'   then emit_token(:max)
     when 'mean'  then emit_token(:mean)
-    else
-      raise LexerError, "Unknown word '#{@text_so_far}' at position #{@i - @text_so_far.length}"
+    when 'print' then emit_token(:print)
+    else emit_token(:identifier)
     end
   end
 end

@@ -1,3 +1,7 @@
+program = NEWLINE* statement (NEWLINE+ statement)* NEWLINE*
+statement = PRINT "(" expression ")"
+          | IDENTIFIER "=" expression
+          | expression
 expression = level0
 level0 = level1
        | level0 "||" level1
@@ -37,6 +41,7 @@ level10 = Integer
         | TRUE
         | FALSE
         | NULL
+        | IDENTIFIER
         | "(" expression ")"
         | "#" lvalue
         | lvalue

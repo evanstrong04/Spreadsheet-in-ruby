@@ -59,6 +59,12 @@ class Translator
   def visit_mean(n) = range(n, 'mean')
   def visit_sum(n)  = range(n, 'sum')
 
+  # Statements
+  def visit_print(n)             = "print(#{translate(n.operand)})"
+  def visit_assign(n)            = "#{n.name} = #{translate(n.expression)}"
+  def visit_variable_rvalue(n)   = n.name
+  def visit_block(n)             = n.statements.map { |s| translate(s) }.join("\n")
+
   private
 
   def binary(node, op)

@@ -7,20 +7,34 @@ class Parser
     @i = 0
   end
 
+  # program = NEWLINE* [statement (NEWLINE+ statement)*] NEWLINE*
+  # A lone statement is returned as-is; several become a Block.
   def parse
-    raise ParserError, 'Empty expression' if @tokens.empty?
+    statements = []
+    skip_newlines
+    until @i >= @tokens.length
+      statements << statement
+      next if @i >= @tokens.length
 
-    node = expression
-    if @i < @tokens.length
-      raise ParserError, "Unexpected token '#{@tokens[@i][:text]}' after the end of the expression"
+      unless has(:newline)
+        raise ParserError, "Unexpected token #{describe(@tokens[@i])} after the end of the statement"
+      end
+      skip_newlines
     end
-    node
+
+    raise ParserError, 'Empty expression' if statements.empty?
+
+    statements.length == 1 ? statements.first : Ast::Block.new(statements)
   end
 
   private
 
   def has(type)
     @i < @tokens.length && @tokens[@i][:type] == type
+  end
+
+  def has_next(type)
+    @i + 1 < @tokens.length && @tokens[@i + 1][:type] == type
   end
 
   def advance
@@ -31,12 +45,40 @@ class Parser
     token
   end
 
+  def skip_newlines
+    advance while has(:newline)
+  end
+
+  # A newline's text is a raw "\n", which reads badly in an error message.
+  def describe(token)
+    token[:type] == :newline ? 'end of line' : "'#{token[:text]}'"
+  end
+
   def expect(type, description)
     unless has(type)
-      found = @i < @tokens.length ? "'#{@tokens[@i][:text]}'" : 'end of input'
+      found = @i < @tokens.length ? describe(@tokens[@i]) : 'end of input'
       raise ParserError, "Expected #{description} but found #{found}"
     end
     advance
+  end
+
+  # statement = print "(" expression ")"
+  #           | IDENTIFIER "=" expression
+  #           | expression
+  def statement
+    if has(:print)
+      advance
+      expect(:lparen, "'(' after print")
+      operand = expression
+      expect(:rparen, "')'")
+      Ast::Print.new(operand)
+    elsif has(:identifier) && has_next(:assign)
+      name = advance[:text]
+      advance # the =
+      Ast::Assign.new(name, expression)
+    else
+      expression
+    end
   end
 
   def expression
@@ -192,7 +234,7 @@ class Parser
     end
   end
 
-  # primitives, parens, cells, casts, statistics
+  # primitives, variables, parens, cells, casts, statistics
   def level10
     if has(:integer_literal)
       Ast::Integer.new(advance[:text].to_i)
@@ -209,6 +251,8 @@ class Parser
     elsif has(:null)
       advance
       Ast::Null.new
+    elsif has(:identifier)
+      Ast::VariableRvalue.new(advance[:text])
     elsif has(:lparen)
       advance
       inner = expression
@@ -235,7 +279,7 @@ class Parser
     elsif @i >= @tokens.length
       raise ParserError, 'Unexpected end of input; expected a value'
     else
-      raise ParserError, "Unexpected token '#{@tokens[@i][:text]}'; expected a value"
+      raise ParserError, "Unexpected token #{describe(@tokens[@i])}; expected a value"
     end
   end
 

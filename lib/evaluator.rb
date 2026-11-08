@@ -1,5 +1,6 @@
 require_relative 'errors'
 require_relative 'ast'
+require_relative 'display'
 
 # Visitor that reduces any AST to a single primitive node, typechecking each
 # operation as it goes. Type rules:
@@ -204,6 +205,32 @@ class Evaluator
     Ast::Float.new(values.sum(&:raw_value).to_f / values.size)
   end
 
+  # --- Statements ----------------------------------------------------------
+
+  # print(x) evaluates x, writes its text to the runtime's output buffer (not
+  # to stdout), and evaluates to x so it can end a block.
+  def visit_print(n)
+    v = evaluate(n.operand)
+    @runtime.print_line(Display.text(v))
+    v
+  end
+
+  def visit_assign(n)
+    v = evaluate(n.expression)
+    @runtime.set_variable(n.name, v)
+    v
+  end
+
+  def visit_variable_rvalue(n)
+    @runtime.get_variable(n.name)
+  end
+
+  def visit_block(n)
+    result = nil
+    n.statements.each { |statement| result = evaluate(statement) }
+    result
+  end
+
   private
 
   def operands(node)
@@ -215,7 +242,7 @@ class Evaluator
   end
 
   def type_name(primitive)
-    primitive.class.name.split('::').last.downcase
+    Display.type_name(primitive)
   end
 
   def require_type(op, primitive, allowed)

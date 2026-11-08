@@ -1,0 +1,17 @@
+{
+  "cells": [
+    { "col": 0, "row": 0, "source": "5.3" },
+    { "col": 1, "row": 0, "source": "-4.1" },
+    { "col": 2, "row": 0, "source": "10.8" },
+    { "col": 0, "row": 1, "source": "0.0" },
+    { "col": 1, "row": 1, "source": "-2.5" },
+    { "col": 2, "row": 1, "source": "4.4" },
+    { "col": 0, "row": 3, "source": "=min([0, 0], [2, 1])" },
+    { "col": 1, "row": 3, "source": "=max([0, 0], [2, 1])" },
+    { "col": 2, "row": 3, "source": "=sum([0, 0], [2, 1])" },
+    { "col": 3, "row": 3, "source": "=mean([0, 0], [2, 1])" },
+    { "col": 4, "row": 0, "source": "100" },
+    { "col": 4, "row": 1, "source": "3" },
+    { "col": 4, "row": 2, "source": "=#[4, 0] * #[4, 1]" }
+  ]
+}
