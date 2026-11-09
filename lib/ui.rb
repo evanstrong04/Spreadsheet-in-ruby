@@ -28,6 +28,26 @@ class SpreadsheetUI
   CTRL_Q = 17
   CTRL_C = 3
 
+  # Some curses builds (notably the Windows one) don't define every key or
+  # mouse constant, so look them up safely instead of naming them directly.
+  def self.curses_const(name, fallback)
+    Curses.const_defined?(name) ? Curses.const_get(name) : fallback
+  end
+
+  KEY_UP = curses_const(:KEY_UP, -1)
+  KEY_DOWN = curses_const(:KEY_DOWN, -1)
+  KEY_LEFT = curses_const(:KEY_LEFT, -1)
+  KEY_RIGHT = curses_const(:KEY_RIGHT, -1)
+  KEY_PPAGE = curses_const(:KEY_PPAGE, -1)
+  KEY_NPAGE = curses_const(:KEY_NPAGE, -1)
+  KEY_HOME = curses_const(:KEY_HOME, -1)
+  KEY_END = curses_const(:KEY_END, -1)
+  KEY_DC = curses_const(:KEY_DC, -1)
+  KEY_ENTER = curses_const(:KEY_ENTER, -1)
+  KEY_BACKSPACE = curses_const(:KEY_BACKSPACE, -1)
+  KEY_RESIZE = curses_const(:KEY_RESIZE, -1)
+  KEY_MOUSE = curses_const(:KEY_MOUSE, 539) # 539 is PDCurses' mouse key
+
   PAIR_NUMBER = 1
   PAIR_STRING = 2
   PAIR_BOOLEAN = 3
@@ -48,6 +68,7 @@ class SpreadsheetUI
     @message = nil
     @dirty = false
     @quit_armed = false
+    @click_mask = @double_mask = @wheel_up = @wheel_down = 0
   end
 
   def run
@@ -79,7 +100,7 @@ class SpreadsheetUI
     background = begin
       Curses.use_default_colors
       -1
-    rescue NoMethodError, Curses::Error
+    rescue NoMethodError, NotImplementedError, Curses::Error
       Curses::COLOR_BLACK
     end
     Curses.init_pair(PAIR_NUMBER, Curses::COLOR_CYAN, background)
@@ -94,7 +115,7 @@ class SpreadsheetUI
   end
 
   def setup_mouse
-    return unless Curses.respond_to?(:mousemask)
+    return unless Curses.respond_to?(:mousemask) && Curses.const_defined?(:ALL_MOUSE_EVENTS)
 
     Curses.mousemask(Curses::ALL_MOUSE_EVENTS)
     @click_mask = mouse_flag(:BUTTON1_CLICKED) | mouse_flag(:BUTTON1_PRESSED)
@@ -157,7 +178,7 @@ class SpreadsheetUI
     was_armed = @quit_armed
     @quit_armed = false
     @message = nil
-    if key == Curses::KEY_RESIZE
+    if key == KEY_RESIZE
       build_windows
       return nil
     end
@@ -172,15 +193,15 @@ class SpreadsheetUI
 
   def handle_grid_key(key, was_armed)
     case key
-    when Curses::KEY_UP then move(0, -1)
-    when Curses::KEY_DOWN then move(0, 1)
-    when Curses::KEY_LEFT then move(-1, 0)
-    when Curses::KEY_RIGHT then move(1, 0)
-    when Curses::KEY_PPAGE then move(0, -@vis_rows)
-    when Curses::KEY_NPAGE then move(0, @vis_rows)
-    when Curses::KEY_MOUSE then handle_mouse
-    when 13, 10, Curses::KEY_ENTER then start_edit
-    when Curses::KEY_DC, Curses::KEY_BACKSPACE, *BACKSPACE_KEYS then clear_cell
+    when KEY_UP then move(0, -1)
+    when KEY_DOWN then move(0, 1)
+    when KEY_LEFT then move(-1, 0)
+    when KEY_RIGHT then move(1, 0)
+    when KEY_PPAGE then move(0, -@vis_rows)
+    when KEY_NPAGE then move(0, @vis_rows)
+    when KEY_MOUSE then handle_mouse
+    when 13, 10, KEY_ENTER then start_edit
+    when KEY_DC, KEY_BACKSPACE, *BACKSPACE_KEYS then clear_cell
     when CTRL_S then save
     when CTRL_Q, CTRL_C then return request_quit(was_armed)
     else
@@ -193,16 +214,16 @@ class SpreadsheetUI
   def handle_edit_key(key)
     case key
     when ESCAPE then @mode = :grid
-    when *COMMIT_KEYS, Curses::KEY_ENTER then commit
+    when *COMMIT_KEYS, KEY_ENTER then commit
     when *NEWLINE_KEYS then @editor.newline
-    when *BACKSPACE_KEYS, Curses::KEY_BACKSPACE then @editor.backspace
-    when Curses::KEY_DC then @editor.delete
-    when Curses::KEY_LEFT then @editor.left
-    when Curses::KEY_RIGHT then @editor.right
-    when Curses::KEY_UP then @editor.up
-    when Curses::KEY_DOWN then @editor.down
-    when Curses::KEY_HOME then @editor.home
-    when Curses::KEY_END then @editor.end_of_line
+    when *BACKSPACE_KEYS, KEY_BACKSPACE then @editor.backspace
+    when KEY_DC then @editor.delete
+    when KEY_LEFT then @editor.left
+    when KEY_RIGHT then @editor.right
+    when KEY_UP then @editor.up
+    when KEY_DOWN then @editor.down
+    when KEY_HOME then @editor.home
+    when KEY_END then @editor.end_of_line
     else
       @editor.insert(key) if key.is_a?(String)
     end
@@ -213,9 +234,9 @@ class SpreadsheetUI
     event = read_mouse_event
     return unless event
 
-    if (event.bstate & @wheel_up) != 0 && @wheel_up != 0
+    if @wheel_up != 0 && (event.bstate & @wheel_up) != 0
       move(0, -3)
-    elsif (event.bstate & @wheel_down) != 0 && @wheel_down != 0
+    elsif @wheel_down != 0 && (event.bstate & @wheel_down) != 0
       move(0, 3)
     elsif (event.bstate & (@click_mask | @double_mask)) != 0
       target = cell_at_screen(event.x, event.y)
@@ -229,6 +250,8 @@ class SpreadsheetUI
   # The curses gem prints an allocator warning the first time it builds a
   # mouse event, which would scribble over the screen. Silence it.
   def read_mouse_event
+    return nil unless Curses.respond_to?(:getmouse)
+
     verbose = $VERBOSE
     $VERBOSE = nil
     Curses.getmouse
