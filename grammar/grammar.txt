@@ -1,4 +1,5 @@
-program = NEWLINE* statement (NEWLINE+ statement)* NEWLINE*
+program = statement
+        | statement NEWLINE program
 statement = PRINT "(" expression ")"
           | IDENTIFIER "=" expression
           | expression
