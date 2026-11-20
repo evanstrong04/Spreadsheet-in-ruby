@@ -27,6 +27,8 @@ class SpreadsheetUI
   CTRL_S = 19
   CTRL_Q = 17
   CTRL_C = 3
+  CTRL_X = 24 # backup save key (some terminals grab Ctrl-S)
+  CTRL_D = 4  # backup quit key (some terminals grab Ctrl-Q)
 
   # Some curses builds (notably the Windows one) don't define every key or
   # mouse constant, so look them up safely instead of naming them directly.
@@ -47,6 +49,13 @@ class SpreadsheetUI
   KEY_BACKSPACE = curses_const(:KEY_BACKSPACE, -1)
   KEY_RESIZE = curses_const(:KEY_RESIZE, -1)
   KEY_MOUSE = curses_const(:KEY_MOUSE, 539) # 539 is PDCurses' mouse key
+
+  BOX_HORIZONTAL = "\u2500"
+  BOX_VERTICAL = "\u2502"
+  BOX_TOP_LEFT = "\u250C"
+  BOX_TOP_RIGHT = "\u2510"
+  BOX_BOTTOM_LEFT = "\u2514"
+  BOX_BOTTOM_RIGHT = "\u2518"
 
   PAIR_NUMBER = 1
   PAIR_STRING = 2
@@ -188,7 +197,7 @@ class SpreadsheetUI
   end
 
   def handle_small_key(key)
-    [CTRL_Q, CTRL_C].include?(key) ? :quit : nil
+    [CTRL_Q, CTRL_C, CTRL_D].include?(key) ? :quit : nil
   end
 
   def handle_grid_key(key, was_armed)
@@ -202,8 +211,8 @@ class SpreadsheetUI
     when KEY_MOUSE then handle_mouse
     when 13, 10, KEY_ENTER then start_edit
     when KEY_DC, KEY_BACKSPACE, *BACKSPACE_KEYS then clear_cell
-    when CTRL_S then save
-    when CTRL_Q, CTRL_C then return request_quit(was_armed)
+    when CTRL_S, CTRL_X then save
+    when CTRL_Q, CTRL_C, CTRL_D then return request_quit(was_armed)
     else
       # Typing any character starts a fresh entry, like a normal spreadsheet.
       start_edit(key) if key.is_a?(String)
@@ -327,7 +336,7 @@ class SpreadsheetUI
     return :quit if !@dirty || was_armed
 
     @quit_armed = true
-    @message = 'Unsaved changes. Press Ctrl-Q again to quit without saving, or Ctrl-S to save.'
+    @message = 'Unsaved changes. Press Ctrl-Q/D again to quit without saving, or Ctrl-S/X to save.'
     nil
   end
 
@@ -363,9 +372,29 @@ class SpreadsheetUI
     win.attroff(attr) unless attr.zero?
   end
 
+  # Draws the window border with Unicode box-drawing characters.
   def frame(win, title)
-    win.box('|', '-')
+    height = win.maxy
+    width = win.maxx
+    win.setpos(0, 0)
+    win.addstr("#{BOX_TOP_LEFT}#{BOX_HORIZONTAL * (width - 2)}#{BOX_TOP_RIGHT}")
+    (1...(height - 1)).each do |y|
+      win.setpos(y, 0)
+      win.addstr(BOX_VERTICAL)
+      win.setpos(y, width - 1)
+      win.addstr(BOX_VERTICAL)
+    end
+    draw_bottom_border(win, height, width)
     put(win, 0, 2, " #{title} ", Curses::A_BOLD)
+  end
+
+  # Writing the bottom-right corner makes curses try to move the cursor off
+  # the window, which it reports as an error even though the character lands.
+  def draw_bottom_border(win, height, width)
+    win.setpos(height - 1, 0)
+    win.addstr("#{BOX_BOTTOM_LEFT}#{BOX_HORIZONTAL * (width - 2)}#{BOX_BOTTOM_RIGHT}")
+  rescue Curses::Error
+    nil
   end
 
   def draw_grid
@@ -499,11 +528,11 @@ class SpreadsheetUI
     if @message
       text = " #{@message}"
     elsif @mode == :edit
-      text = ' EDIT  Enter/Tab: commit   Ctrl-J: new line   Esc: cancel'
+      text = ' EDIT  Enter/Tab: commit   Ctrl-J/O: new line   Esc: cancel'
     else
       file = @path || '(no file)'
       mark = @dirty ? ' [modified]' : ''
-      text = " #{file}#{mark}  |  arrows/click: move  type or Enter: edit  Del: clear  ^S: save  ^Q: quit"
+      text = " #{file}#{mark}  |  arrows/click: move  type or Enter: edit  Del: clear  ^S/^X: save  ^Q/^D: quit"
     end
     win.attron(Curses::A_REVERSE)
     win.setpos(0, 0)

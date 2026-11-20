@@ -225,8 +225,10 @@ class Evaluator
     @runtime.get_variable(n.name)
   end
 
+  # Starts from null so even an empty block returns a model primitive, never
+  # Ruby's nil.
   def visit_block(n)
-    result = nil
+    result = Ast::Null.new
     n.statements.each { |statement| result = evaluate(statement) }
     result
   end
